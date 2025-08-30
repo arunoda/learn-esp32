@@ -20,7 +20,7 @@ void app_main(void)
         gpio_set_level(LED_PIN, 1);
         gpio_set_level(LED_PIN_2, 1);
         vTaskDelay(200 / portTICK_PERIOD_MS);
-        
+
         gpio_set_level(LED_PIN, 0);
         gpio_set_level(LED_PIN_2, 0);
         vTaskDelay(200 / portTICK_PERIOD_MS);
