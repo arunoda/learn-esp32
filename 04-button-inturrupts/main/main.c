@@ -20,6 +20,12 @@ static void IRAM_ATTR button_isr(void *arg)
 
     BaseType_t higher_task_woken = pdFALSE;
     xQueueSendFromISR(button_queue, &event, &higher_task_woken);
+
+    // When we send an event to the queue, a higher priority task might get triggered
+    // Then we need to yeild the CPU to do that by doing a context switch
+    // This is it.
+    // **NOTE**: Here we don't have to do this.
+    // But as a best practice, we should do this since we may later trigger an higher priority task
     if (higher_task_woken == pdTRUE) {
         portYIELD_FROM_ISR();
     }
