@@ -13,6 +13,5 @@
   ],
   "idf.port": "/dev/tty.usbmodem2101",
   "idf.flashType": "UART",
-  "C_Cpp.errorSquiggles": "enabled",
-  "git.ignoreLimitWarning": true
+  "C_Cpp.errorSquiggles": "enabled"
 }
