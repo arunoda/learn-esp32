@@ -1,17 +1,16 @@
 #include <stdio.h>
-#include <inttypes.h>
+#include "esp_system.h"
 #include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
 
-void app_main(void)
-{
+void app_main(void) {
     printf("Hello world!\n");
 
-    for (int i = 10; i >= 0; i--) {
-        printf("Restarting in %d seconds...\n", i);
-        vTaskDelay(1000 / portTICK_PERIOD_MS);
+    for (int i=0; i < 10; i++) {
+        printf("Counting: %d\n", i + 1);
+        vTaskDelay(pdMS_TO_TICKS(1000));
     }
-    printf("Restarting now.\n");
+
+    printf("Bye\n");
     fflush(stdout);
     esp_restart();
 }
