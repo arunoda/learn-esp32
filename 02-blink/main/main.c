@@ -1,12 +1,11 @@
 #include "driver/gpio.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-#include "hal/gpio_types.h"
-#include <stdio.h>
 
 #define LED_PIN GPIO_NUM_35
 
 void app_main(void) {
+
     // Set io config for the LED_PIN
     // We need to initialize all the values, unless they will contain random values
     gpio_config_t io_conf = {
