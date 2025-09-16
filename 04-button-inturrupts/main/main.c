@@ -1,12 +1,3 @@
-/*
-## Tasks
-* [x] app_main with led_on
-* [x] app_main with button led
-* [x] move that to a task
-* [x] use a queue to trigger the task (with a timer)
-* [ ] use ISR to trigger that queue
-*/
-
 #include "driver/gpio.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
