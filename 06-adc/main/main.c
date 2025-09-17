@@ -19,7 +19,7 @@ void app_main(void)
     adc_oneshot_chan_cfg_t channel_config = {
         .bitwidth = ADC_BITWIDTH_DEFAULT,
         // We need more attenuation to capture 3.3V. 
-        // So, we need to add (4.7k || 4.7k) resistors before the 3.3v
+        // So, we need to add 1.5k (1k + 560) resistors before the 3.3v
         // Then the whole 50k knob range is functional (0 - 4095)
         .atten = ADC_ATTEN_DB_12
     };
