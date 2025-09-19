@@ -20,7 +20,7 @@
 #define SAMPLE_RATE 44100
 #define BLOCK_FRAMES 256
 
-#define TONE_FREQ_HZ 220
+#define TONE_FREQ_HZ 110
 #define TONE_SCALE   0.6f   // keep some headroom
 
 static i2c_master_bus_handle_t bus;
@@ -76,7 +76,7 @@ static void i2s_setup(void)
     // This is the configuration for 16bit left justified serial audio
     i2s_std_slot_config_t slot_cfg = {
         .data_bit_width = I2S_DATA_BIT_WIDTH_16BIT,
-        .slot_bit_width = I2S_SLOT_BIT_WIDTH_32BIT,
+        .slot_bit_width = I2S_SLOT_BIT_WIDTH_16BIT,
         .slot_mode = I2S_SLOT_MODE_STEREO,
         .slot_mask = I2S_STD_SLOT_LEFT | I2S_STD_SLOT_RIGHT,
         .ws_width = 32,          // WS high (or low) for the entire 16‑bit slot
@@ -102,12 +102,6 @@ static void i2s_setup(void)
             .din  = I2S_GPIO_UNUSED,
         },
     };
-    
-    std_cfg.slot_cfg.slot_mask      = I2S_STD_SLOT_LEFT | I2S_STD_SLOT_RIGHT;
-    std_cfg.slot_cfg.slot_bit_width = I2S_SLOT_BIT_WIDTH_16BIT;
-    std_cfg.slot_cfg.ws_width       = 32;      // WS high for the whole left sample
-    std_cfg.slot_cfg.bit_shift      = false;  // left-justified (MSB changes with LRCK edge)
-    std_cfg.slot_cfg.left_align     = true;   // already true via macro, kept for clarity
 
     ESP_ERROR_CHECK(i2s_channel_init_std_mode(tx_chan, &std_cfg));
     ESP_ERROR_CHECK(i2s_channel_enable(tx_chan));
@@ -149,7 +143,7 @@ static void fill_from_cycle(int32_t *buffer)
         if (tone_cycle_pos == tone_cycle_len) {
             tone_cycle_pos = 0;
         }
-        buffer[2 * n]     = 0;
+        buffer[2 * n]     = sample;
         buffer[2 * n + 1] = sample;
     }
 }
