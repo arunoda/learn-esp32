@@ -22,9 +22,9 @@
 #define REVERB_COMB_DAMP 0.25f
 #define REVERB_ALLPASS_FEEDBACK 0.64f
 #define REVERB_WET_MIX 0.60f
-#define DELAY_TIME_MS 120
+#define DELAY_TIME_MS 200
 #define DELAY_FEEDBACK 0.6f
-#define DELAY_WET_MIX 0.8f
+#define DELAY_WET_MIX 0.5f
 #define DELAY_BUFFER_SAMPLES ((SAMPLE_RATE * DELAY_TIME_MS / 1000) * 2)
 #define SAMPLE_TO_FLOAT (1.0f / 32768.0f)
 #define FLOAT_TO_SAMPLE 32767.0f
@@ -151,8 +151,6 @@ static void audio_task(void *arg)
 
         size_t written = 0;
         ESP_ERROR_CHECK(i2s_channel_write(tx_chan, txbuf, n, &written, portMAX_DELAY));
-
-        taskYIELD();
     }
 }
 
