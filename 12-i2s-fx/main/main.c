@@ -11,11 +11,23 @@
 
 
 #define LED_PIN 17
-#define BUFF_LEN 32  // samples (uint16_t)
+#define BUFF_LEN 64  // samples (uint16_t)
 #define SAMPLE_RATE 44100
-#define DELAY_TIME_MS 200
-#define DELAY_CHANNELS 2
-#define DELAY_BUFFER_SAMPLES ((SAMPLE_RATE * DELAY_TIME_MS / 1000) * DELAY_CHANNELS)
+#define REVERB_COMB1_LENGTH 1499
+#define REVERB_COMB2_LENGTH 1733
+#define REVERB_COMB3_LENGTH 1949
+#define REVERB_ALLPASS1_LENGTH 347
+#define REVERB_ALLPASS2_LENGTH 113
+#define REVERB_COMB_FEEDBACK 0.9f
+#define REVERB_COMB_DAMP 0.25f
+#define REVERB_ALLPASS_FEEDBACK 0.64f
+#define REVERB_WET_MIX 0.60f
+#define DELAY_TIME_MS 120
+#define DELAY_FEEDBACK 0.6f
+#define DELAY_WET_MIX 0.8f
+#define DELAY_BUFFER_SAMPLES ((SAMPLE_RATE * DELAY_TIME_MS / 1000) * 2)
+#define SAMPLE_TO_FLOAT (1.0f / 32768.0f)
+#define FLOAT_TO_SAMPLE 32767.0f
 
 static inline int16_t clamp_int16(int32_t sample)
 {
@@ -28,6 +40,17 @@ static inline int16_t clamp_int16(int32_t sample)
     return (int16_t)sample;
 }
 
+static inline float clamp_unit(float value)
+{
+    if (value > 1.0f) {
+        return 1.0f;
+    }
+    if (value < -1.0f) {
+        return -1.0f;
+    }
+    return value;
+}
+
 static i2s_chan_handle_t tx_chan = NULL;
 static i2s_chan_handle_t rx_chan = NULL;
 
@@ -37,7 +60,20 @@ static uint16_t txbuf[BUFF_LEN];
 static void audio_task(void *arg)
 {
     size_t n = 0;
-    static int16_t delay_line[DELAY_BUFFER_SAMPLES];
+    static float comb1[REVERB_COMB1_LENGTH];
+    static float comb2[REVERB_COMB2_LENGTH];
+    static float comb3[REVERB_COMB3_LENGTH];
+    static float comb1_lp = 0.0f;
+    static float comb2_lp = 0.0f;
+    static float comb3_lp = 0.0f;
+    static size_t comb1_idx = 0;
+    static size_t comb2_idx = 0;
+    static size_t comb3_idx = 0;
+    static float allpass1[REVERB_ALLPASS1_LENGTH];
+    static size_t allpass1_idx = 0;
+    static float allpass2[REVERB_ALLPASS2_LENGTH];
+    static size_t allpass2_idx = 0;
+    static float delay_buffer[DELAY_BUFFER_SAMPLES];
     static size_t delay_idx = 0;
 
     // Small delay so clocks settle after enable
@@ -52,23 +88,64 @@ static void audio_task(void *arg)
         int16_t *input = (int16_t *)rxbuf;
         int16_t *output = (int16_t *)txbuf;
         const size_t samples = n / sizeof(int16_t);
-        size_t idx = delay_idx;
 
+        // Schroeder-style reverb: three combs in parallel, two all-pass in series.
         for (size_t i = 0; i < samples; ++i) {
-            const int16_t dry = input[i];
-            const int16_t delayed = delay_line[idx];
-            const int32_t wet = dry + (delayed >> 1);
-            output[i] = clamp_int16(wet);
+            const float dry = (float)input[i] * SAMPLE_TO_FLOAT;
 
-            const int32_t feedback = dry + (delayed >> 2);
-            delay_line[idx] = clamp_int16(feedback);
-
-            if (++idx >= DELAY_BUFFER_SAMPLES) {
-                idx = 0;
+            float delayed_sample = delay_buffer[delay_idx];
+            float delay_input = clamp_unit(dry + (delayed_sample * DELAY_FEEDBACK));
+            delay_buffer[delay_idx] = delay_input;
+            if (++delay_idx >= DELAY_BUFFER_SAMPLES) {
+                delay_idx = 0;
             }
-        }
 
-        delay_idx = idx;
+            float delay_mix = clamp_unit((dry * (1.0f - DELAY_WET_MIX)) + (delayed_sample * DELAY_WET_MIX));
+            const float reverb_in = delay_mix;
+
+            float c1 = comb1[comb1_idx];
+            float c2 = comb2[comb2_idx];
+            float c3 = comb3[comb3_idx];
+
+            comb1_lp += REVERB_COMB_DAMP * (c1 - comb1_lp);
+            comb2_lp += REVERB_COMB_DAMP * (c2 - comb2_lp);
+            comb3_lp += REVERB_COMB_DAMP * (c3 - comb3_lp);
+
+            comb1[comb1_idx] = clamp_unit(reverb_in + (comb1_lp * REVERB_COMB_FEEDBACK));
+            comb2[comb2_idx] = clamp_unit(reverb_in + (comb2_lp * REVERB_COMB_FEEDBACK));
+            comb3[comb3_idx] = clamp_unit(reverb_in + (comb3_lp * REVERB_COMB_FEEDBACK));
+
+            float comb_sum = (comb1_lp + comb2_lp + comb3_lp) * (1.0f / 3.0f);
+
+            if (++comb1_idx >= REVERB_COMB1_LENGTH) {
+                comb1_idx = 0;
+            }
+            if (++comb2_idx >= REVERB_COMB2_LENGTH) {
+                comb2_idx = 0;
+            }
+            if (++comb3_idx >= REVERB_COMB3_LENGTH) {
+                comb3_idx = 0;
+            }
+
+            float buf1 = comb_sum + (REVERB_ALLPASS_FEEDBACK * allpass1[allpass1_idx]);
+            float ap1_out = allpass1[allpass1_idx] - (REVERB_ALLPASS_FEEDBACK * buf1);
+            allpass1[allpass1_idx] = clamp_unit(buf1);
+            if (++allpass1_idx >= REVERB_ALLPASS1_LENGTH) {
+                allpass1_idx = 0;
+            }
+
+            float buf2 = ap1_out + (REVERB_ALLPASS_FEEDBACK * allpass2[allpass2_idx]);
+            float ap2_out = allpass2[allpass2_idx] - (REVERB_ALLPASS_FEEDBACK * buf2);
+            allpass2[allpass2_idx] = clamp_unit(buf2);
+            if (++allpass2_idx >= REVERB_ALLPASS2_LENGTH) {
+                allpass2_idx = 0;
+            }
+
+            float wet = clamp_unit((reverb_in * (1.0f - REVERB_WET_MIX)) + (ap2_out * REVERB_WET_MIX));
+
+            int32_t sample = (int32_t)(wet * FLOAT_TO_SAMPLE);
+            output[i] = clamp_int16(sample);
+        }
 
         // Or mute: memset(txbuf, 0, n);
 
