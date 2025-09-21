@@ -8,9 +8,15 @@
 #include "driver/gpio.h"
 #include "es8388.h"
 #include "hal/gpio_types.h"
+#include "esp_adc/adc_oneshot.h"
 
+#define LED_PIN 38
+// This is the ADC Unit and Channel for CV1 and CV2
+// We need to check the datasheet to find out which is what
+#define ADC_UNIT ADC_UNIT_2
+#define ADC_CHANNEL_CV1 ADC_CHANNEL_6 // GPIO_17
+#define ADC_CHANNEL_CV2 ADC_CHANNEL_5 // GPIO_16
 
-#define LED_PIN 17
 #define BUFF_LEN 64  // samples (uint16_t)
 #define SAMPLE_RATE 44100
 #define REVERB_COMB1_LENGTH 1499
@@ -21,7 +27,8 @@
 #define REVERB_COMB_FEEDBACK 0.9f
 #define REVERB_COMB_DAMP 0.25f
 #define REVERB_ALLPASS_FEEDBACK 0.64f
-#define REVERB_WET_MIX 0.60f
+#define REVERB_WET_MIX 0.90f
+#define MAX_DELAY_TIME_MS 500
 #define DELAY_TIME_MS 200
 #define DELAY_FEEDBACK 0.6f
 #define DELAY_WET_MIX 0.5f
@@ -56,6 +63,9 @@ static i2s_chan_handle_t rx_chan = NULL;
 
 static uint16_t rxbuf[BUFF_LEN];
 static uint16_t txbuf[BUFF_LEN];
+
+static float cv1 = 0.0f;
+static float cv2 = 0.0f;
 
 static void audio_task(void *arg)
 {
@@ -94,7 +104,7 @@ static void audio_task(void *arg)
             const float dry = (float)input[i] * SAMPLE_TO_FLOAT;
 
             float delayed_sample = delay_buffer[delay_idx];
-            float delay_input = clamp_unit(dry + (delayed_sample * DELAY_FEEDBACK));
+            float delay_input = clamp_unit(dry + (delayed_sample * DELAY_FEEDBACK * cv1));
             delay_buffer[delay_idx] = delay_input;
             if (++delay_idx >= DELAY_BUFFER_SAMPLES) {
                 delay_idx = 0;
@@ -141,7 +151,7 @@ static void audio_task(void *arg)
                 allpass2_idx = 0;
             }
 
-            float wet = clamp_unit((reverb_in * (1.0f - REVERB_WET_MIX)) + (ap2_out * REVERB_WET_MIX));
+            float wet = clamp_unit((reverb_in * (1.0f - REVERB_WET_MIX * cv2)) + (ap2_out * REVERB_WET_MIX * cv2));
 
             int32_t sample = (int32_t)(wet * FLOAT_TO_SAMPLE);
             output[i] = clamp_int16(sample);
@@ -218,11 +228,37 @@ void app_main(void)
     };
     gpio_config(&led_config);
 
+    // 7) CV1 Read
+    adc_oneshot_unit_handle_t adc_handle;
+    adc_oneshot_unit_init_cfg_t init_config = {
+        .unit_id = ADC_UNIT
+    };
+    adc_oneshot_new_unit(&init_config, &adc_handle);
+
+    adc_oneshot_chan_cfg_t channel_config = {
+        .bitwidth = ADC_BITWIDTH_DEFAULT,
+        // We need more attenuation to capture 3.3V. 
+        // So, we need to add 1.5k (1k + 560) resistors before the 3.3v
+        // Then the whole 50k knob range is functional (0 - 4095)
+        .atten = ADC_ATTEN_DB_12
+    };
+    adc_oneshot_config_channel(adc_handle, ADC_CHANNEL_CV1, &channel_config);
+    adc_oneshot_config_channel(adc_handle, ADC_CHANNEL_CV2, &channel_config);
+
     while(1) {
         gpio_set_level(LED_PIN, 1);
         vTaskDelay(pdMS_TO_TICKS(250));
 
         gpio_set_level(LED_PIN, 0);
         vTaskDelay(pdMS_TO_TICKS(250));
+
+        int read_value = 0;
+        adc_oneshot_read(adc_handle, ADC_CHANNEL_CV1, &read_value);
+        cv1 = read_value / 4095.0f;
+        ESP_LOGI("cv1", "value: %f", cv1);
+
+        adc_oneshot_read(adc_handle, ADC_CHANNEL_CV2, &read_value);
+        cv2 = read_value / 4095.0f;
+        ESP_LOGI("cv2", "value: %f", cv2);
     }
 }
