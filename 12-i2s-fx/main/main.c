@@ -10,7 +10,7 @@
 #include "hal/gpio_types.h"
 #include "esp_adc/adc_oneshot.h"
 
-#define LED_PIN 38
+#define LED_PIN GPIO_NUM_4
 // This is the ADC Unit and Channel for CV1 and CV2
 // We need to check the datasheet to find out which is what
 #define ADC_UNIT ADC_UNIT_2
@@ -195,11 +195,11 @@ void app_main(void)
         .slot_cfg = I2S_STD_PHILIPS_SLOT_DEFAULT_CONFIG(I2S_DATA_BIT_WIDTH_16BIT,
                                                         I2S_SLOT_MODE_STEREO),
         .gpio_cfg = {
-            .mclk = GPIO_NUM_4,   // MCLK out (optional but common for codecs like ES8388)
-            .bclk = GPIO_NUM_5,
-            .ws   = GPIO_NUM_6,
-            .dout = GPIO_NUM_7,
-            .din  = GPIO_NUM_15,
+            .mclk = GPIO_NUM_41,   // MCLK out (optional but common for codecs like ES8388)
+            .bclk = GPIO_NUM_40,
+            .ws   = GPIO_NUM_39,
+            .dout = GPIO_NUM_38,
+            .din  = GPIO_NUM_37,
             .invert_flags = {
                 .mclk_inv = false,
                 .bclk_inv = false,
